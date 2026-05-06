@@ -1,0 +1,11 @@
+target C {
+    workers: 4,
+    cmake-include: ["../../lib/RPi/interrupt.cmake"],
+    files: ["../../lib/RPi/interrupt.c"]
+}
+
+import WorkCore from "../../lib/libWork.lf"
+
+main reactor {
+    ctrl = new WorkCore()
+}
