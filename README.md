@@ -22,7 +22,7 @@ Because this project utilizes the core library components of the original resear
 * **[`src/lf/RPi_Work.lf`](src/lf/RPi_Work.lf)**: The basic Lingua Franca test. It does the same math as the C program on a single core, allowing us to see how much extra background work the Lingua Franca environment adds.
 * **[`src/lf/RPi_Parallel.lf`](src/lf/RPi_Parallel.lf)**: The parallel test. It runs code on all four Raspberry Pi processors at once to see how they get in each other's way when sharing memory.
 * **[`src/lf/RPi_Control.lf`](src/lf/RPi_Control.lf)**: A feedback test that monitors timing delays and tries to fix them automatically to keep the system running on time.
-* **[`src/metronome/metronome.ino`](src/signal_generator/signal_generator.ino)**: The code for the STM32 Nucleo. It tells the STM32 to send out regular and random electrical pulses to interrupt the Raspberry Pi.
+* **[`src/signal_generator/signal_generator.ino`](src/signal_generator/signal_generator.ino)**: The code for the STM32 Nucleo. It tells the STM32 to send out regular and random electrical pulses to interrupt the Raspberry Pi.
 * **[`scripts/normal.py`](scripts/normal.py)**: A setup script that tells the C program exactly how many times to repeat the math loop so we get consistent starting results.
 * **[`docs/figs/`](docs/figs/)**: This folder contains the results graphs. These images show the timing differences between using one processor and using four processors at the same time.
 
