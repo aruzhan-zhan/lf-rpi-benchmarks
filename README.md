@@ -62,13 +62,15 @@ sudo apt update
 sudo apt install cmake git python3-pip
 pip3 install numpy matplotlib
 
+***
 ### 2. WiringPi Installation
 The C baseline and Lingua Franca C-target rely on WiringPi to handle the hardware interrupts. Because the original WiringPi project was deprecated, you must install it from the community-maintained GitHub mirror:
 
-Bash
+```bash
 git clone [https://github.com/WiringPi/WiringPi.git](https://github.com/WiringPi/WiringPi.git)
 cd WiringPi
 ./build
+***
 Verify the installation and your pin mappings by running gpio readall.
 
 3. Local Lingua Franca Installation
