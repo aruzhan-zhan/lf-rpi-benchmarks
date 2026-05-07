@@ -1,46 +1,43 @@
 # lf-rpi-benchmarks: Evaluating Lingua Franca Timing Predictability on Raspberry Pi
 
 ## Introduction
-This repository contains the software baseline and benchmarking suite for evaluating timing predictability and cache coherence on a multi-core Raspberry Pi 4B running a Linux-based OS. 
+This repository contains the code and tests used to measure timing predictability and cache contention on a multi-core Raspberry Pi 4B running Linux.
 
-The experiments evaluate the execution jitter (time deviation) of a simulated cyber-physical system under heavy external interrupt loads. We compare native bare-metal C execution against the temporal semantics of Lingua Franca (LF), isolating the timing anomalies caused by shared L2 cache contention across multiple cores. 
+These experiments measure how much a system's timing gets delayed (jitter) when it is constantly bombarded by external hardware interrupts. We compare a standard C program against Lingua Franca to see exactly how much delay is caused when the Raspberry Pi's four physical cores are forced to fight over the same shared memory cache.
 
 ### Credits and Departures from Original Work
-This benchmarking suite builds directly upon the foundational methodology and library files established in the [programming-pret-machines](https://github.com/magnmaeh/programming-pret-machines) repository. 
+These benchmarks build directly upon the foundational methodology and library files established in the [programming-pret-machines](https://github.com/magnmaeh/programming-pret-machines) repository. 
 
-While the original tutorial spanned multiple platforms and used a Digilent Analog Discovery tool for waveform generation, this project specifically isolates the **Raspberry Pi 3B+** to study multi-core cache behavior. Key departures from the original work include:
-1. **Hardware Metronome:** Replacing the expensive Digilent Analog Discovery tool with an **STM32 Nucleo-F303R8** programmed via the Arduino IDE to physically generate strict periodic and sporadic hardware interrupts.
-2. **Multi-Core Parallelism:** Introducing a 4-core parallel Lingua Franca benchmark (`RPi_Parallel.lf`) specifically for the Raspberry Pi to explicitly trigger L2 cache contention, which was absent from the original tutorial's RPi setup.
+While the original tutorial spanned multiple platforms and used a Digilent Analog Discovery tool for waveform generation, this project specifically isolates the **Raspberry Pi 4B** to study multi-core cache behavior. Key departures from the original work include:
+1. **External Signal Generator:** Replacing the expensive Digilent Analog Discovery tool with an **STM32 Nucleo-F302R8** programmed via the Arduino IDE to physically generate strict periodic and sporadic hardware interrupts.
+2. **Multi-Core Parallelism:** Introducing a 4-core parallel Lingua Franca benchmark (RPi_Parallel.lf) specifically for the Raspberry Pi. This measures the delays caused when multiple processors fight over shared memory, a test that was absent from the original tutorial.
 
 ### ⚠️ Important Dependency Note
 Because this project utilizes the core library components of the original research, the Lingua Franca files in this repository rely on relative paths (e.g., `../../lib/RPi/interrupt.cmake`). To compile and run these benchmarks, you **must** clone this repository inside the `experiments/lf/src/` directory of the original `programming-pret-machines` repository.
 
 ---
 
-## Repository Structure & File Directory
+## Repository Structure and File Directory
 
-* **`src/c/main.c`**: The native C single-core baseline. It configures the GPIO pins, waits for the hardware trigger, runs the computational loop, logs timestamps using `clock_gettime()`, and prints the execution latency.
-* **`src/lf/RPi_Work.lf`**: The Lingua Franca open-loop baseline. It performs the exact same workload as the native C baseline, establishing the overhead of the LF single-threaded runtime.
-* **`src/lf/RPi_Parallel.lf`**: The Lingua Franca multi-core benchmark. Configured with `workers: 4`, this file maps the workload across four parallel cores, deliberately stressing the Raspberry Pi's shared L2 cache to observe contention jitter.
-* **`src/lf/RPi_Control.lf`**: The Lingua Franca feedback control benchmark (imported from the original tutorial). It implements a closed loop to monitor latency spikes and actuate timing corrections.
+* **`src/c/main.c`**: The standard C program used as our starting point for comparison. It sets up the pins, waits for the hardware signal, runs the math loop, records the timestamps, and prints the timing delays.
+* **`src/lf/RPi_Work.lf`**: This runs the exact same test as the standard C program, but using Lingua Franca on a single core. Because Lingua Franca has to do extra work in the background to manage its strict timing rules, this test lets us measure exactly how much extra delay (overhead) the language itself adds.
+* **`src/lf/RPi_Parallel.lf`**: This test runs Lingua Franca across all 4 cores of the Raspberry Pi at the same time. Because all 4 processors have to share the same small 'shelf' of fast memory (the L2 cache), they end up fighting for access. We use this test to measure the timing delays caused when the processors get in each other's way.
 * **`src/metronome/metronome.ino`**: The C++ firmware flashed to the STM32 Nucleo. It acts as the physical interrupt generator, sending 10ms periodic pulses on one pin and randomized sporadic bursts on another.
-* **`scripts/normal.py`**: A Python utility script. It generates a randomized configuration header (`/tmp/config.h`) specifying the number of iterations for the C baseline to run.
+* **`scripts/normal.py`**: A small Python script that sets up the test. It creates a configuration file (/tmp/config.h) that tells the standard C program exactly how many times to repeat the math loop so we can get a consistent starting measurement.
 * **`data/`**: Contains the raw nanosecond timestamp outputs (`*_results.txt`) from the execution of the four benchmarks.
-* **`docs/figs/`**: Contains the generated `matplotlib` graphs visualizing the single-core predictability and multi-core determinism datasets.
+* **`docs/figs/`**: This folder contains the charts and graphs created by the Python script. These images show the timing differences between a single processor and four processors working at the same time.
 
 ---
 
 ## Hardware Setup
 
-The physical architecture of this benchmark consists of two primary components: the **Raspberry Pi 3B+** (the target platform) and the **STM32 Nucleo-F303R8** (the hardware metronome).
+The physical architecture of this benchmark consists of two primary components: the **Raspberry Pi 4B** (the target platform) and the **STM32 Nucleo-F303R8** (external signal generator).
 
-### Raspberry Pi 3B+ Configuration
-The Raspberry Pi serves as the device under test. It is accessed remotely via SSH (over Ethernet or Wi-Fi) to execute the benchmarks without the overhead of a desktop environment or physical peripherals. 
+### Raspberry Pi 4B Configuration
+We access the Raspberry Pi remotely through a terminal (SSH). This allows us to run the tests without a desktop interface or a monitor, ensuring the Pi doesn't waste any processing power on unnecessary background tasks.
 
-### STM32 Hardware Metronome Wiring
-To physically simulate the unpredictable environment of a cyber-physical system, the STM32 Nucleo generates hardware interrupts. These pulses are fed directly into the Raspberry Pi's GPIO pins to compete for the CPU and shared L2 cache.
-
-Unlike the original tutorial which required a dedicated trigger signal to start a Digilent waveform generator, the STM32 is programmed as a continuous, free-running metronome. The wiring is drastically simplified to just three jumper cables:
+### STM32 External Signal Generator Wiring
+Unlike the original tutorial, which needed a special signal to start the generator, our STM32 starts working automatically the moment it is powered on. This makes the setup much easier because we only need three jumper cables instead of four:
 
 | STM32 Nucleo Pin | RPi 3B+ Physical Pin | RPi Native (BCM) | WiringPi (wPi) | Interrupt Type |
 | :--- | :--- | :--- | :--- | :--- |
@@ -48,23 +45,24 @@ Unlike the original tutorial which required a dedicated trigger signal to start 
 | **D2** | **Pin 10** | BCM 15 | wPi 16 | **Periodic** (10ms intervals) |
 | **D3** | **Pin 12** | BCM 18 | wPi 1 | **Sporadic** (Randomized bursts) |
 
-*Note: Ensure the STM32 is powered via USB before initiating the software benchmarks on the Raspberry Pi. The metronome code (`metronome.ino`) will immediately begin generating pulses upon boot.*
+*Note: Ensure the STM32 is powered via USB before initiating the software benchmarks on the Raspberry Pi. The external signal generator code (`metronome.ino`) will immediately begin generating pulses upon boot.*
 
 ---
 
-## Software & Platform Setup
+## Software and Platform Setup
 
 The software environment on the Raspberry Pi requires the Lingua Franca compiler, native C build tools, and the WiringPi library to interface with the GPIO pins.
 
-### 1. Network & Base Dependencies
-The Raspberry Pi is accessed via SSH. *Note: If you are using a mobile hotspot to connect to the Pi, "Client Isolation" features may block host-to-target protocols like `scp`. To bypass this, we compile everything locally on the Pi rather than transferring binaries from a host machine.*
+### 1. Network and Base Dependencies
+We access the Raspberry Pi through a terminal (SSH). *Note: If you are using a mobile hotspot, it might block you from sending files from your laptop to the Pi. To fix this, we install all the necessary tools and build the programs directly on the Pi instead of trying to move them over the network.*
 
 Update the system and install the required build tools and Python libraries (used for the configuration script):
 ```bash
 sudo apt update
 sudo apt install cmake git python3-pip
 pip3 install numpy matplotlib
-2. WiringPi Installation
+
+### 2. WiringPi Installation
 The C baseline and Lingua Franca C-target rely on WiringPi to handle the hardware interrupts. Because the original WiringPi project was deprecated, you must install it from the community-maintained GitHub mirror:
 
 Bash
