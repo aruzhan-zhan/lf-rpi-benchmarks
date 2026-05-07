@@ -1,4 +1,4 @@
-# lf-rpi-benchmarks: Evaluating Lingua Franca Timing Predictability on Raspberry Pi
+# lf-rpi-benchmarks: Evaluating Lingua Franca Determinism on Raspberry Pi
 
 ## Introduction
 This repository contains the code and tests used to measure timing predictability and memory interference on a multi-core Raspberry Pi running Linux.
@@ -18,14 +18,13 @@ Because this project utilizes the core library components of the original resear
 ---
 
 ## Repository Structure and File Directory
-
-* **`src/c/main.c`**: The standard C program used as our starting point for comparison. It sets up the pins, waits for the hardware signal, runs the math loop, records the timestamps, and prints the timing delays.
-* **`src/lf/RPi_Work.lf`**: This runs the exact same test as the standard C program, but using Lingua Franca on a single core. Because Lingua Franca has to do extra work in the background to manage its strict timing rules, this test lets us measure exactly how much extra delay (overhead) the language itself adds.
-* **`src/lf/RPi_Parallel.lf`**: This test runs Lingua Franca across all 4 cores of the Raspberry Pi at the same time. Because all 4 processors have to share the same small part of fast memory (the L2 cache), they end up fighting for access. We use this test to measure the timing delays caused when the processors get in each other's way.
-* **`src/metronome/metronome.ino`**: The C++ firmware flashed to the STM32 Nucleo. It acts as the physical interrupt generator, sending 10ms periodic pulses on one pin and randomized sporadic bursts on another.
-* **`scripts/normal.py`**: A small Python script that sets up the test. It creates a configuration file (/tmp/config.h) that tells the standard C program exactly how many times to repeat the math loop so we can get a consistent starting measurement.
-* **`data/`**: Contains the raw nanosecond timestamp outputs (`*_results.txt`) from the execution of the four benchmarks.
-* **`docs/figs/`**: This folder contains the charts and graphs created by the Python script. These images show the timing differences between a single processor and four processors working at the same time.
+* **[`src/c/main.c`](src/c/main.c)**: The standard C program used as our starting point for comparison. It sets up the pins, runs the math loop, and measures the "normal" timing delays.
+* **[`src/lf/RPi_Work.lf`](src/lf/RPi_Work.lf)**: The basic Lingua Franca test. It does the same math as the C program on a single core, allowing us to see how much extra background work the Lingua Franca environment adds.
+* **[`src/lf/RPi_Parallel.lf`](src/lf/RPi_Parallel.lf)**: The parallel test. It runs code on all four Raspberry Pi processors at once to see how they get in each other's way when sharing memory.
+* **[`src/lf/RPi_Control.lf`](src/lf/RPi_Control.lf)**: A feedback test that monitors timing delays and tries to fix them automatically to keep the system running on time.
+* **[`src/metronome/metronome.ino`](src/metronome/metronome.ino)**: The code for the STM32 Nucleo. It tells the STM32 to send out regular and random electrical pulses to interrupt the Raspberry Pi.
+* **[`scripts/normal.py`](scripts/normal.py)**: A setup script that tells the C program exactly how many times to repeat the math loop so we get consistent starting results.
+* **[`docs/figs/`](docs/figs/)**: This folder contains the results graphs. These images show the timing differences between using one processor and using four processors at the same time.
 
 ---
 
@@ -42,58 +41,7 @@ Figure 1. Hardware Setup
 <img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/b7347d8a-da7a-4d1e-a65f-80df11fd5e14" />
 
 ### Raspberry Pi 4B Configuration
-Since we are running these experiments remotely, we use SSH to control the Raspberry Pi from a laptop. This allows the Pi to run "headless" (without a monitor) so it doesn't waste resources on a desktop interface.
-
-**1. Connecting to the Network**
-We used a mobile hotspot for the network connection. To find your Pi's IP address once it connects to your hotspot:
-
-  * **On Mac/Linux:** Use arp -a or check your hotspot's connected devices list.
-  * **On Windows:** Use arp -a in Command Prompt or a tool like Advanced IP Scanner.
-
-**2. Setting up SSH Access (Passwordless Login)**
-To make running experiments faster, we set up SSH keys. This allows you to log in without typing your password every time.
-
-**On your laptop (not the Pi):**
-
-**1. Generate a key pair:**
-
-```bash
-ssh-keygen -t rsa -b 4096
-```
-(Give it a descriptive name like ~/.ssh/rpi_key when prompted).
-
-**2. Copy the key to the Pi:**
-
-```bash
-ssh-copy-id -i ~/.ssh/rpi_key.pub <username>@<pi_ip_address>
-```
-**3. Simplify the connection:**
-Create or edit the config file on your laptop (nano ~/.ssh/config) and add:
-
-```
-Host rpi
-    HostName <pi_ip_address>
-    User <username>
-    IdentityFile ~/.ssh/rpi_key
-```
-Now you can simply type ssh rpi to log in.
-
-**4. Critical Libraries and Toolchain**
-Because some networks (like hotspots) can be unstable for large file transfers, we build all necessary tools directly on the Pi.
-
-  * **WiringPi:** Essential for hardware signal handling. We use the community-maintained version because the original is deprecated.
-
-```bash
-git clone https://github.com/WiringPi/WiringPi.git
-cd WiringPi && ./build
-```
-  * **Lingua Franca (lfc):** We install the compiler locally to avoid "cross-compilation" issues over the network.
-
-```bash
-git clone https://github.com/lf-lang/lingua-franca.git
-cd lingua-franca && ./gradlew assemble
-```
-*Ensure you add lingua-franca/bin to your system PATH so you can run lfc from any directory.*
+The Raspberry Pi serves as the device under test. It is accessed remotely via SSH (over Ethernet or Wi-Fi) to execute the benchmarks without the overhead of a desktop environment or physical peripherals.
 
 ### STM32 External Signal Generator Wiring
 Unlike the original tutorial, which needed a special signal to start the generator, our STM32 starts working automatically the moment it is powered on. This makes the setup much easier because we only need three jumper cables instead of four:
@@ -148,16 +96,16 @@ Ensure the ./bin/lfc executable is added to your system $PATH.
 # The Benchmarks
 We use these four benchmarks to isolate what causes timing delays. We start with basic Linux background noise, then look at the extra work Lingua Franca does, then move to delays caused by multiple processors working at once, and finally test a way to fix those delays automatically.
 
-### 1. Interrupt Robustness in C (src/c/main.c)
+### 1. [`Interrupt Robustness in C`](src/c/main.c)
 This program is our starting point. It sets up the Raspberry Pi pins and waits for a 'start' signal from the STM32. Once it starts, it runs a heavy math loop that keeps the processor busy. By recording the timing of this loop, we can measure the normal delays caused by the Linux operating system as it switches between different background tasks.
 
-### 2. Basic Single-Core Test (src/lf/RPi_Work.lf)
+### 2. [`Standard LF test`](src/lf/RPi_Work.lf)
 This is our first test using the Lingua Franca language. We run it on a single core and make it do the exact same math as our original C program. By comparing the two, we can see how much extra processing time (overhead) Lingua Franca adds to the system compared to plain C.
 
-### 3. Parallel Reactions in LF (src/lf/RPi_Parallel.lf)
+### 3. [`Parallel Reactions in LF`](src/lf/RPi_Parallel.lf)
 This test pushes the Raspberry Pi to its limit by running the math loop on all four processors at the same time. Because the Pi's processors have to share the same small part of fast memory (the L2 cache), they end up getting in each other's way. We use this test to measure the timing delays caused by this memory interference, proving how difficult it is to keep perfect timing when multiple processors are working in parallel.
 
-### 4. Tight Control Loop in LF (src/lf/RPi_Control.lf)
+### 4. [`Tight Control Loop in LF`](src/lf/RPi_Control.lf)
 This benchmark tests a software-based solution for timing delays. By using a feedback loop, the code can sense when a timing spike occurs and react in real-time to correct it. This allows the system to remain consistent and predictable, even when the Raspberry Pi is under heavy pressure from external signals.
 
 # Execution and Visualization
