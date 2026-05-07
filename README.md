@@ -1,14 +1,14 @@
 # lf-rpi-benchmarks: Evaluating Lingua Franca Timing Predictability on Raspberry Pi
 
 ## Introduction
-This repository contains the code and tests used to measure timing predictability and cache contention on a multi-core Raspberry Pi 4B running Linux.
+This repository contains the code and tests used to measure timing predictability and memory interference on a multi-core Raspberry Pi running Linux.
 
 These experiments measure how much a system's timing gets delayed (jitter) when it is constantly bombarded by external hardware interrupts. We compare a standard C program against Lingua Franca to see exactly how much delay is caused when the Raspberry Pi's four physical cores are forced to fight over the same shared memory cache.
 
 ### Credits and Departures from Original Work
 These benchmarks build directly upon the foundational methodology and library files established in the [programming-pret-machines](https://github.com/magnmaeh/programming-pret-machines) repository. 
 
-While the original tutorial spanned multiple platforms and used a Digilent Analog Discovery tool for waveform generation, this project specifically isolates the **Raspberry Pi 4B** to study multi-core cache behavior. Key departures from the original work include:
+While the original tutorial spanned multiple platforms and used a Digilent Analog Discovery tool for waveform generation, this project focuses specifically on the **Raspberry Pi 4B** to see how using multiple processors at the same time affects the system's timing. Key changes from the original work include:
 1. **External Signal Generator:** Replacing the expensive Digilent Analog Discovery tool with an **STM32 Nucleo-F302R8** programmed via the Arduino IDE to physically generate strict periodic and sporadic hardware interrupts.
 2. **Multi-Core Parallelism:** Introducing a 4-core parallel Lingua Franca benchmark (RPi_Parallel.lf) specifically for the Raspberry Pi. This measures the delays caused when multiple processors fight over shared memory, a test that was absent from the original tutorial.
 
@@ -21,7 +21,7 @@ Because this project utilizes the core library components of the original resear
 
 * **`src/c/main.c`**: The standard C program used as our starting point for comparison. It sets up the pins, waits for the hardware signal, runs the math loop, records the timestamps, and prints the timing delays.
 * **`src/lf/RPi_Work.lf`**: This runs the exact same test as the standard C program, but using Lingua Franca on a single core. Because Lingua Franca has to do extra work in the background to manage its strict timing rules, this test lets us measure exactly how much extra delay (overhead) the language itself adds.
-* **`src/lf/RPi_Parallel.lf`**: This test runs Lingua Franca across all 4 cores of the Raspberry Pi at the same time. Because all 4 processors have to share the same small 'shelf' of fast memory (the L2 cache), they end up fighting for access. We use this test to measure the timing delays caused when the processors get in each other's way.
+* **`src/lf/RPi_Parallel.lf`**: This test runs Lingua Franca across all 4 cores of the Raspberry Pi at the same time. Because all 4 processors have to share the same small part of fast memory (the L2 cache), they end up fighting for access. We use this test to measure the timing delays caused when the processors get in each other's way.
 * **`src/metronome/metronome.ino`**: The C++ firmware flashed to the STM32 Nucleo. It acts as the physical interrupt generator, sending 10ms periodic pulses on one pin and randomized sporadic bursts on another.
 * **`scripts/normal.py`**: A small Python script that sets up the test. It creates a configuration file (/tmp/config.h) that tells the standard C program exactly how many times to repeat the math loop so we can get a consistent starting measurement.
 * **`data/`**: Contains the raw nanosecond timestamp outputs (`*_results.txt`) from the execution of the four benchmarks.
@@ -64,67 +64,70 @@ pip3 install numpy matplotlib
 ```
 
 ### 2. WiringPi Installation
-The C baseline and Lingua Franca C-target rely on WiringPi to handle the hardware interrupts. Because the original WiringPi project was deprecated, you must install it from the community-maintained GitHub mirror:
+The C program and Lingua Franca rely on WiringPi to handle the hardware signals. Because the original version of WiringPi is no longer being updated, you must install this community-maintained version instead:
 
 ```bash
 git clone [https://github.com/WiringPi/WiringPi.git](https://github.com/WiringPi/WiringPi.git)
 cd WiringPi
 ./build
-***
+```
 Verify the installation and your pin mappings by running gpio readall.
 
-3. Local Lingua Franca Installation
-Unlike standard LF cross-compilation workflows, we install the Lingua Franca compiler (lfc) directly onto the Raspberry Pi to avoid network transfer issues.
+### 3. Local Lingua Franca Installation
+Instead of building the programs on a laptop and trying to send them over the network, we install the Lingua Franca compiler (lfc) directly on the Raspberry Pi. This avoids any connection issues caused by Wi-Fi hotspots and keeps everything on one device.
 
-Download and install the LF compiler (ensure you are using the version compatible with the programming-pret-machines library, typically v0.4.1 or the nightly build specified in the original tutorial):
+Download and install the LF compiler. Make sure to use the version that works with the research library, which is usually version 0.4.1 or the most recent 'development' version mentioned in the tutorial:
 
-Bash
-# Clone the LF repository and build locally
+### 4. Clone the LF repository and build locally
+```bash
 git clone [https://github.com/lf-lang/lingua-franca.git](https://github.com/lf-lang/lingua-franca.git)
 cd lingua-franca
 ./gradlew assemble
+```
 Ensure the ./bin/lfc executable is added to your system $PATH.
 
-The Benchmarks
-This research suite consists of four distinct benchmarks. Each step is designed to isolate a specific variable: native execution noise, software framework overhead, multi-core cache contention, and algorithmic timing mitigation.
+# The Benchmarks
+We use these four benchmarks to isolate what causes timing delays. We start with basic Linux background noise, then look at the extra work Lingua Franca does, then move to delays caused by multiple processors working at once, and finally test a way to fix those delays automatically.
 
-1. Native C Single-Core Baseline (src/c/main.c)
-This bare-metal C program represents the standard execution environment. It configures the GPIO pins using WiringPi, waits for a synchronization signal, and executes a computationally heavy loop for CONFIG_NITERATIONS. It directly handles the hardware interrupts generated by the STM32 metronome. The timestamps recorded here establish the baseline execution jitter caused by Linux OS scheduling and basic CPU context switching.
+### 1. Interrupt Robustness in C (src/c/main.c)
+This program is our starting point. It sets up the Raspberry Pi pins and waits for a 'start' signal from the STM32. Once it starts, it runs a heavy math loop that keeps the processor busy. By recording the timing of this loop, we can measure the normal delays caused by the Linux operating system as it switches between different background tasks.
 
-2. Lingua Franca Open-Loop Baseline (src/lf/RPi_Work.lf)
-This benchmark introduces the Lingua Franca runtime. Compiled with single-threaded: true, it executes the exact same computational workload as the Native C baseline using the imported WorkCore reactor. By comparing this dataset against the C baseline, we can measure the inherent overhead and scheduling jitter introduced by LF's software-level timing semantics on a single core.
+### 2. Basic Single-Core Test (src/lf/RPi_Work.lf)
+This is our first test using the Lingua Franca language. We run it on a single core and make it do the exact same math as our original C program. By comparing the two, we can see how much extra processing time (overhead) Lingua Franca adds to the system compared to plain C.
 
-3. Lingua Franca Multi-Core (src/lf/RPi_Parallel.lf)
-This benchmark scales the Lingua Franca execution across the Raspberry Pi's hardware. By declaring workers: 4 in the target properties, the LF runtime utilizes a multi-threaded pool to distribute the WorkCore execution. Because the Raspberry Pi 3B+ features a unified L2 cache shared among its 4 physical cores, this parallel execution explicitly triggers cache contention. The resulting jitter isolates the timing anomalies caused by shared memory architecture, proving the necessity of directory cache coherence.
+### 3. Parallel Reactions in LF (src/lf/RPi_Parallel.lf)
+This test pushes the Raspberry Pi to its limit by running the math loop on all four processors at the same time. Because the Pi's processors have to share the same small part of fast memory (the L2 cache), they end up getting in each other's way. We use this test to measure the timing delays caused by this memory interference, proving how difficult it is to keep perfect timing when multiple processors are working in parallel.
 
-4. Lingua Franca Closed-Loop Control (src/lf/RPi_Control.lf)
-This final benchmark introduces algorithmic mitigation. Also running on Lingua Franca, it replaces the standard work reactor with ControlCoreDelayed. This implements a feedback control loop that actively monitors execution latencies. When latency spikes occur due to interrupts or OS noise, the control loop dynamically reacts to correct the timing variation, establishing a predictable, deterministic execution envelope purely in software.
+### 4. Tight Control Loop in LF (src/lf/RPi_Control.lf)
+This benchmark tests a software-based solution for timing delays. By using a feedback loop, the code can sense when a timing spike occurs and react in real-time to correct it. This allows the system to remain consistent and predictable, even when the Raspberry Pi is under heavy pressure from external signals.
 
-Execution & Visualization
+# Execution and Visualization
 Follow these steps to compile the benchmarks on the Raspberry Pi, capture the timing data, and generate the visualization graphs.
 
-1. Generate Configuration
+### 1. Generate Configuration
 First, determine how many iterations the benchmarks should run. The normal.py script generates a header file (/tmp/config.h) that sets CONFIG_NITERATIONS for the C compiler.
 
-Bash
+```bash
 python3 scripts/normal.py 10000
+```
 This example configures the system to run 10,000 computational loops.
 
-2. Start the Hardware Metronome
+### 2. Start the External Signal Generator
 Ensure the STM32 Nucleo is powered via USB and connected to the Raspberry Pi GPIO pins as detailed in the Hardware Setup. It will immediately begin flooding the Pi with periodic and sporadic interrupts.
 
-3. Compile and Run the Benchmarks
-All benchmarks must be run sequentially, and their standard output (the execution latencies) should be piped into text files for analysis. Create a data/ directory if you haven't already.
+### 3. Compile and Run the Benchmarks
+All tests should be run one after another, and the results (the timing delays) should be saved directly into text files for analysis. You can do this by using the > command to send the output to the ```data/``` folder.
 
-Native C Baseline:
+Standard C starting test:
 
-Bash
+```bash
 gcc src/c/main.c src/c/common.c -o bin/c_main -lwiringPi
 ./bin/c_main > data/c_baseline_results.txt
+```
 Lingua Franca Benchmarks:
-Use the local LF compiler to build the single-core, parallel, and closed-loop benchmarks. The compiler automatically places the executables in the bin/ folder.
+Use the local LF compiler to build the single-core, parallel, and tight control loop benchmarks. The compiler automatically places the executables in the bin/ folder.
 
-Bash
+```bash
 # Open-Loop Single Core
 lfc src/lf/RPi_Work.lf
 ./bin/RPi_Work > data/baseline_results.txt
@@ -136,15 +139,18 @@ lfc src/lf/RPi_Parallel.lf
 # Closed-Loop Autonomic Control
 lfc src/lf/RPi_Control.lf
 ./bin/RPi_Control > data/control_results.txt
-4. Data Visualization
-Once the hardware execution is complete, the data files are analyzed using Python to generate visual proof of the cache contention and the LF determinism.
+```
+### 4. Data Visualization
+Once the hardware execution is complete, the data files are analyzed using Python to generate visual proof of the timing differences between a single-core and a multi-core setup and the LF determinism.
 
-If working remotely, transfer the data/ directory to your local host machine. Run the provided Python graphing script:
+If working remotely, transfer the data/ directory to your local host machine. Run the provided Python graphing scripts.
 
-Bash
+```bash
 python plot_benchmarks.py
+```
 This script parses the nanosecond timestamps, converts them to milliseconds, and generates the high-resolution visualization graphs found in docs/figs/:
 
-single_core_predictability.png: Compares Native C, LF Open-Loop, and LF Closed-Loop.
+<img width="3000" height="1500" alt="single_core_predictability" src="https://github.com/user-attachments/assets/f9fdf2d5-89fc-425c-9d9b-8ddc66258e00" />
+single_core_predictability.png: This graph compares three different single-processor setups. It shows how the "Smart" Feedback Loop (Tight Control Loop) actually improves timing predictability compared to the basic Lingua Franca and standard C versions
 
-multi_core_determinism.png: Demonstrates the cache contention spikes by comparing the single-core C baseline against the 4-core parallel LF execution.
+multi_core_determinism.png: Demonstrates the timing delays spikes by comparing the single-core C baseline against the 4-core parallel LF execution.
