@@ -164,7 +164,7 @@ This chart compares two different approaches on a single processor:
 * **Orange Line (Open-Loop):** The standard Lingua Franca program just doing its work without checking its timing.
 * **Blue Line (Autonomic Closed-Loop):** The "Smart" Lingua Franca program that monitors its own speed and adjusts itself (actuation).
 
-**Analysis & Findings:**
+**Analysis and Findings:**
 * **The Baseline Struggle:** The orange line shows that even on a single core, the standard setup is vulnerable to normal background noise and interrupts, bouncing unpredictably between 1.25ms and 1.75ms.
 * **The Autonomic Solution:** The blue line represents a massive success. By introducing a self-regulating, autonomic feedback loop, the software detects delays and instantly corrects them. As a result, the execution latency drops to near-zero (around 0.1ms) and stays completely flat. 
 * **Conclusion:** This graph confirms the primary goal of the research: even when hardware causes unpredictable delays, we can use smart, adaptive software to create a highly predictable, reliable system.
@@ -174,6 +174,6 @@ Figure 3. Multi-core determinism
 **What this graph shows:**
 This chart tracks the timing delays (latency) when the Lingua Franca math loop is forced to run on all four Raspberry Pi processors at the same time. 
 
-**Analysis & Findings:**
+**Analysis and Findings:**
 * **Confirmed Unpredictability:** The green line is highly volatile, constantly spiking up to 1.75ms and dropping back down. 
 * **The Cause:** Because all four processors are fighting for access to the same shared L2 memory cache, they constantly force each other to wait. This proves that simply throwing more processors at a problem can actually ruin timing predictability on a standard Raspberry Pi.
