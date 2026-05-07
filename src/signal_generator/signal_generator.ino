@@ -1,5 +1,5 @@
 /*
- * STM32 Hardware Metronome for RPi Timing Benchmarks
+ * STM32 Hardware External Signal Generator for RPi Timing Benchmarks
  * Target: STM32 Nucleo-64 (Arduino IDE)
  * Purpose: Generates periodic and sporadic pulses to trigger 
  * Raspberry Pi interrupts.
