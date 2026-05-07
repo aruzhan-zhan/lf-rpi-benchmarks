@@ -52,7 +52,7 @@ Unlike the original tutorial, which needed a special signal to start the generat
 | **D2** | **Pin 10** | BCM 15 | wPi 16 | **Periodic** (10ms intervals) |
 | **D3** | **Pin 12** | BCM 18 | wPi 1 | **Sporadic** (Randomized bursts) |
 
-*Note: Ensure the STM32 is powered via USB before initiating the software benchmarks on the Raspberry Pi. The external signal generator code (`metronome.ino`) will immediately begin generating pulses upon boot.*
+*Note: Ensure the STM32 is powered via USB before initiating the software benchmarks on the Raspberry Pi. The external signal generator code ([`signal_generator.ino`](src/signal_generator/signal_generator.ino) will immediately begin generating pulses upon boot.*
 
 ---
 
