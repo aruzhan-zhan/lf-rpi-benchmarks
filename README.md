@@ -31,10 +31,69 @@ Because this project utilizes the core library components of the original resear
 
 ## Hardware Setup
 
-The physical architecture of this benchmark consists of two primary components: the **Raspberry Pi 4B** (the target platform) and the **STM32 Nucleo-F303R8** (external signal generator).
+1. Raspberry Pi 4B. It also needs:
+   * A Raspberry Pi power supply.
+   * A micro-sd card for operating system.
+2. STM32 Nucleo-F302R8 (or similar STM32 board): Used as our low-cost signal generator.
+   * Micro-USB Cable
+3. 3 male-female jumper cables.
+
+Figure 1. Hardware Setup
+<img width="800" height="600" alt="image" src="https://github.com/user-attachments/assets/b7347d8a-da7a-4d1e-a65f-80df11fd5e14" />
 
 ### Raspberry Pi 4B Configuration
-We access the Raspberry Pi remotely through a terminal (SSH). This allows us to run the tests without a desktop interface or a monitor, ensuring the Pi doesn't waste any processing power on unnecessary background tasks.
+Since we are running these experiments remotely, we use SSH to control the Raspberry Pi from a laptop. This allows the Pi to run "headless" (without a monitor) so it doesn't waste resources on a desktop interface.
+
+**1. Connecting to the Network**
+We used a mobile hotspot for the network connection. To find your Pi's IP address once it connects to your hotspot:
+
+  * **On Mac/Linux:** Use arp -a or check your hotspot's connected devices list.
+  * **On Windows:** Use arp -a in Command Prompt or a tool like Advanced IP Scanner.
+
+**2. Setting up SSH Access (Passwordless Login)**
+To make running experiments faster, we set up SSH keys. This allows you to log in without typing your password every time.
+
+**On your laptop (not the Pi):**
+
+**1. Generate a key pair:**
+
+```bash
+ssh-keygen -t rsa -b 4096
+```
+(Give it a descriptive name like ~/.ssh/rpi_key when prompted).
+
+**2. Copy the key to the Pi:**
+
+```bash
+ssh-copy-id -i ~/.ssh/rpi_key.pub <username>@<pi_ip_address>
+```
+**3. Simplify the connection:**
+Create or edit the config file on your laptop (nano ~/.ssh/config) and add:
+
+```
+Host rpi
+    HostName <pi_ip_address>
+    User <username>
+    IdentityFile ~/.ssh/rpi_key
+```
+Now you can simply type ssh rpi to log in.
+
+**4. Critical Libraries and Toolchain**
+Because some networks (like hotspots) can be unstable for large file transfers, we build all necessary tools directly on the Pi.
+
+  * **WiringPi:** Essential for hardware signal handling. We use the community-maintained version because the original is deprecated.
+
+```bash
+git clone https://github.com/WiringPi/WiringPi.git
+cd WiringPi && ./build
+```
+  * **Lingua Franca (lfc):** We install the compiler locally to avoid "cross-compilation" issues over the network.
+
+```bash
+git clone https://github.com/lf-lang/lingua-franca.git
+cd lingua-franca && ./gradlew assemble
+```
+*Ensure you add lingua-franca/bin to your system PATH so you can run lfc from any directory.*
 
 ### STM32 External Signal Generator Wiring
 Unlike the original tutorial, which needed a special signal to start the generator, our STM32 starts working automatically the moment it is powered on. This makes the setup much easier because we only need three jumper cables instead of four:
@@ -150,7 +209,10 @@ python plot_benchmarks.py
 ```
 This script parses the nanosecond timestamps, converts them to milliseconds, and generates the high-resolution visualization graphs found in docs/figs/:
 
+Figure 2. Single core predictability
 <img width="3000" height="1500" alt="single_core_predictability" src="https://github.com/user-attachments/assets/f9fdf2d5-89fc-425c-9d9b-8ddc66258e00" />
-single_core_predictability.png: This graph compares three different single-processor setups. It shows how the "Smart" Feedback Loop (Tight Control Loop) actually improves timing predictability compared to the basic Lingua Franca and standard C versions
+This graph compares three different single-processor setups. It shows how the "Smart" Feedback Loop (Tight Control Loop) actually improves timing predictability compared to the basic Lingua Franca and standard C versions
 
-multi_core_determinism.png: Demonstrates the timing delays spikes by comparing the single-core C baseline against the 4-core parallel LF execution.
+Figure 3. Multi-core determinism
+<img width="3000" height="1500" alt="multi_core_determinism" src="https://github.com/user-attachments/assets/572421f9-eb4e-4e3a-b1d8-e217024f8d29" />
+Demonstrates the timing delays spikes by comparing the single-core C baseline against the 4-core parallel LF execution.
