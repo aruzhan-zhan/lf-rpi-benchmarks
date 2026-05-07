@@ -176,4 +176,4 @@ This chart tracks the timing delays (latency) when the Lingua Franca math loop i
 
 **Analysis & Findings:**
 * **Confirmed Unpredictability:** The green line is highly volatile, constantly spiking up to 1.75ms and dropping back down. 
-* **The Cause:** This visually confirms the "memory traffic jam." Because all four processors are fighting for access to the same shared L2 memory cache, they constantly force each other to wait. This proves that simply throwing more processors at a problem can actually ruin timing predictability on a standard Raspberry Pi.
+* **The Cause:** Because all four processors are fighting for access to the same shared L2 memory cache, they constantly force each other to wait. This proves that simply throwing more processors at a problem can actually ruin timing predictability on a standard Raspberry Pi.
