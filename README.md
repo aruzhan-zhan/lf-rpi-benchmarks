@@ -60,7 +60,7 @@ Update the system and install the required build tools and Python libraries (use
 ```bash
 sudo apt update
 sudo apt install cmake git python3-pip
-pip3 install numpy matplotlib
+pip3 install numpy matplotlib```
 
 ***
 ### 2. WiringPi Installation
