@@ -135,15 +135,15 @@ Lingua Franca Benchmarks:
 Use the local LF compiler to build the single-core, parallel, and tight control loop benchmarks. The compiler automatically places the executables in the bin/ folder.
 
 ```bash
-# Open-Loop Single Core
+# Basic Single-Core Test
 lfc src/lf/RPi_Work.lf
 ./bin/RPi_Work > data/baseline_results.txt
 
-# Open-Loop Multi-Core (4 Workers)
+# 4-Core Parallel Test
 lfc src/lf/RPi_Parallel.lf
 ./bin/RPi_Parallel > data/parallel_results.txt
 
-# Closed-Loop Autonomic Control
+# Smart Feedback Control Test
 lfc src/lf/RPi_Control.lf
 ./bin/RPi_Control > data/control_results.txt
 ```
